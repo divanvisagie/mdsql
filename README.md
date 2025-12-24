@@ -9,6 +9,12 @@ SQL queries for markdown tables.
 ## Install
 
 ```bash
+cargo install mdsql
+```
+
+From source:
+
+```bash
 cargo install --path .
 ```
 
