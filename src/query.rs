@@ -1,5 +1,6 @@
 use sqlparser::ast::{
-    Expr, ObjectName, OrderBy, Query, Select, SelectItem, SetExpr, Statement, TableFactor,
+    Assignment, AssignmentTarget, Expr, ObjectName, OrderBy, Query, Select, SelectItem, SetExpr, 
+    Statement, TableFactor, TableWithJoins,
 };
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
@@ -14,6 +15,7 @@ fn preprocess_table_refs(sql: &str) -> String {
     // Handle FROM and INTO clauses
     let re_from = Regex::new(r"(?i)\bFROM\s+(\d+)").unwrap();
     let re_into = Regex::new(r"(?i)\bINTO\s+(\d+)").unwrap();
+    let re_update = Regex::new(r"(?i)\bUPDATE\s+(\d+)").unwrap();
 
     let sql = re_from
         .replace_all(sql, |caps: &regex::Captures| {
@@ -21,9 +23,15 @@ fn preprocess_table_refs(sql: &str) -> String {
         })
         .to_string();
 
-    re_into
+    let sql = re_into
         .replace_all(&sql, |caps: &regex::Captures| {
             format!("INTO \"{}\"", &caps[1])
+        })
+        .to_string();
+
+    re_update
+        .replace_all(&sql, |caps: &regex::Captures| {
+            format!("UPDATE \"{}\"", &caps[1])
         })
         .to_string()
 }
@@ -124,6 +132,13 @@ pub struct DeleteResult {
     pub remaining_rows: Vec<Vec<String>>,
 }
 
+/// Result of an UPDATE operation
+pub struct UpdateResult {
+    pub table_index: usize,
+    pub rows_updated: usize,
+    pub updated_rows: Vec<Vec<String>>,
+}
+
 /// Execute a DELETE statement, returning the table index and remaining rows
 pub fn execute_delete(sql: &str, tables: &[Table]) -> Result<DeleteResult> {
     let sql = preprocess_table_refs(sql);
@@ -197,6 +212,139 @@ pub fn execute_delete(sql: &str, tables: &[Table]) -> Result<DeleteResult> {
     }
 }
 
+/// Execute an UPDATE statement, returning the table index and updated rows
+pub fn execute_update(sql: &str, tables: &[Table]) -> Result<UpdateResult> {
+    let sql = preprocess_table_refs(sql);
+
+    let dialect = GenericDialect {};
+    let statements = Parser::parse_sql(&dialect, &sql)
+        .map_err(|e| MdsqlError::SqlParse(e.to_string()))?;
+
+    if statements.is_empty() {
+        return Err(MdsqlError::SqlParse("No SQL statement found".to_string()));
+    }
+
+    let statement = &statements[0];
+
+    match statement {
+        Statement::Update {
+            table,
+            assignments,
+            from,
+            selection,
+            returning,
+            or,
+        } => {
+            // Validate unsupported UPDATE options
+            if from.is_some() {
+                return Err(MdsqlError::Query(
+                    "UPDATE ... FROM is not supported".to_string(),
+                ));
+            }
+
+            if returning.is_some() {
+                return Err(MdsqlError::Query(
+                    "UPDATE ... RETURNING is not supported".to_string(),
+                ));
+            }
+
+            if or.is_some() {
+                return Err(MdsqlError::Query(
+                    "UPDATE ... OR <conflict> is not supported".to_string(),
+                ));
+            }
+
+            if assignments.is_empty() {
+                return Err(MdsqlError::Query("UPDATE requires SET assignments".to_string()));
+            }
+
+            let table_index = get_table_index_from_update(table)?;
+            let table_data = tables
+                .get(table_index)
+                .ok_or(MdsqlError::TableNotFound(table_index))?;
+
+            let assignment_ops = process_assignments(assignments, table_data)?;
+            
+            let (updated_rows, rows_updated) = apply_updates_to_rows(
+                table_data, 
+                &assignment_ops, 
+                selection.as_ref()
+            )?;
+
+            Ok(UpdateResult {
+                table_index,
+                rows_updated,
+                updated_rows,
+            })
+        }
+        _ => Err(MdsqlError::Query("Expected UPDATE statement".to_string())),
+    }
+}
+
+
+
+/// Process assignment operations from UPDATE statement
+fn process_assignments<'a>(
+    assignments: &'a [Assignment],
+    table: &Table
+) -> Result<Vec<(usize, &'a Expr)>> {
+    let mut assignment_ops = Vec::new();
+    
+    for assignment in assignments {
+        let AssignmentTarget::ColumnName(target) = &assignment.target else {
+            return Err(MdsqlError::Query(
+                "Only column assignments are supported in UPDATE".to_string(),
+            ));
+        };
+
+        let col_name = target.to_string();
+        let col_name = col_name.trim_matches('"');
+        let col_idx = table
+            .columns
+            .iter()
+            .position(|c| c == col_name)
+            .ok_or_else(|| MdsqlError::ColumnNotFound(col_name.to_string()))?;
+
+        assignment_ops.push((col_idx, &assignment.value));
+    }
+    
+    Ok(assignment_ops)
+}
+
+/// Apply updates to rows based on WHERE condition
+fn apply_updates_to_rows(
+    table: &Table,
+    assignment_ops: &[(usize, &Expr)],
+    where_expr: Option<&Expr>,
+) -> Result<(Vec<Vec<String>>, usize)> {
+    let mut updated_rows = Vec::with_capacity(table.rows.len());
+    let mut rows_updated = 0;
+
+    for row in &table.rows {
+        let matches = if let Some(where_expr) = where_expr {
+            evaluate_where(where_expr, &table.columns, row)?
+        } else {
+            true
+        };
+
+        if matches {
+            let mut new_row = row.clone();
+            for (col_idx, value_expr) in assignment_ops {
+                let new_value = get_expr_value(value_expr, &table.columns, row)?;
+                if let Some(cell) = new_row.get_mut(*col_idx) {
+                    *cell = new_value;
+                }
+            }
+            updated_rows.push(new_row);
+            rows_updated += 1;
+        } else {
+            updated_rows.push(row.clone());
+        }
+    }
+
+    Ok((updated_rows, rows_updated))
+}
+
 fn get_table_index_from_name(name: &ObjectName) -> Result<usize> {
     let table_name = name.to_string();
     let table_name = table_name.trim_matches('"');
@@ -206,6 +354,19 @@ fn get_table_index_from_name(name: &ObjectName) -> Result<usize> {
             "Table identifier must be a number (0, 1, 2...), got: {}",
             table_name
         )))
+}
+
+fn get_table_index_from_update(table: &TableWithJoins) -> Result<usize> {
+    if !table.joins.is_empty() {
+        return Err(MdsqlError::Query("UPDATE does not support JOIN".to_string()));
+    }
+
+    match &table.relation {
+        TableFactor::Table { name, .. } => get_table_index_from_name(name),
+        _ => Err(MdsqlError::Query(
+            "Unsupported UPDATE table reference".to_string(),
+        )),
+    }
 }
 
 fn extract_insert_values(source: &Option<Box<Query>>) -> Result<Vec<String>> {
@@ -469,10 +630,10 @@ fn apply_limit(rows: Vec<Vec<String>>, limit: &Option<Expr>) -> Vec<Vec<String>>
         return rows;
     };
 
-    if let Expr::Value(sqlparser::ast::Value::Number(n, _)) = limit_expr {
-        if let Ok(limit) = n.parse::<usize>() {
-            return rows.into_iter().take(limit).collect();
-        }
+    if let Expr::Value(sqlparser::ast::Value::Number(n, _)) = limit_expr
+        && let Ok(limit) = n.parse::<usize>()
+    {
+        return rows.into_iter().take(limit).collect();
     }
 
     rows
@@ -530,5 +691,15 @@ mod tests {
         let tables = vec![sample_table()];
         let result = execute("SELECT * FROM 0 LIMIT 2", &tables).unwrap();
         assert_eq!(result.rows.len(), 2);
+    }
+
+    #[test]
+    fn test_update_where() {
+        let tables = vec![sample_table()];
+        let result =
+            execute_update("UPDATE 0 SET city = 'SF' WHERE name = 'Bob'", &tables).unwrap();
+        assert_eq!(result.rows_updated, 1);
+        assert_eq!(result.updated_rows[1][2], "SF");
+        assert_eq!(result.updated_rows[0][2], "NYC");
     }
 }

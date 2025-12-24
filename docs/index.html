@@ -43,7 +43,7 @@
 
       <ul>
         <li>Query markdown tables with SELECT, WHERE, ORDER BY, LIMIT</li>
-        <li>Insert and delete rows with standard SQL syntax</li>
+        <li>Insert, update, and delete rows with standard SQL syntax</li>
         <li>Output as columns, markdown, CSV, JSON, or TSV</li>
         <li>Unix-friendly: default output pipes well with other tools</li>
         <li>Tables addressed by 0-based index</li>
@@ -120,6 +120,11 @@ mdsql delete "DELETE FROM 0 WHERE name = 'Bob'" team.md
 # Delete all rows (use with caution)
 mdsql delete "DELETE FROM 0" team.md</code></pre>
 
+      <h3>UPDATE</h3>
+
+<pre><code># Update matching rows
+mdsql update "UPDATE 0 SET role = 'Lead' WHERE name = 'Alice'" team.md</code></pre>
+
       <h2>Output Formats</h2>
 
       <p>Use <code>--format</code> to change output:</p>
@@ -170,7 +175,6 @@ mdsql query "SELECT * FROM 1" data.md</code></pre>
       <ul>
         <li>Split into library crate and CLI crate</li>
         <li>FFI-first library for multiple languages (Python first)</li>
-        <li><code>UPDATE ... SET ... WHERE</code></li>
         <li>Aggregate functions (SUM, COUNT, AVG, MIN, MAX)</li>
         <li>GROUP BY</li>
         <li>Infer table names from preceding markdown headers</li>

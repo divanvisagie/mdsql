@@ -36,6 +36,9 @@ mdsql query --format json "SELECT * FROM 0" data.md
 # Insert a row
 mdsql insert "INSERT INTO 0 (name, age, city) VALUES ('Alice', '30', 'NYC')" data.md
 
+# Update rows
+mdsql update "UPDATE 0 SET city = 'SF' WHERE name = 'Alice'" data.md
+
 # Delete rows
 mdsql delete "DELETE FROM 0 WHERE name = 'Alice'" data.md
 ```
@@ -47,6 +50,7 @@ mdsql delete "DELETE FROM 0 WHERE name = 'Alice'" data.md
 - `ORDER BY` (ASC/DESC)
 - `LIMIT`
 - `INSERT INTO ... VALUES`
+- `UPDATE ... SET ... WHERE`
 - `DELETE FROM ... WHERE`
 
 Tables are referenced by 0-based index: `FROM 0`, `INTO 0`, etc.
@@ -63,7 +67,6 @@ Tables are referenced by 0-based index: `FROM 0`, `INTO 0`, etc.
 
 - Split into `mdsql` library crate and `mdsql-cli` binary crate
 - FFI-first library for multi-language use (Python first)
-- `UPDATE ... SET ... WHERE`
 - Aggregate functions (`SUM`, `COUNT`, `AVG`, `MIN`, `MAX`)
 - `GROUP BY`
 - Infer table names from preceding markdown headers
@@ -77,7 +80,7 @@ Tables are referenced by 0-based index: `FROM 0`, `INTO 0`, etc.
 | Table references     | Index-based (`FROM 0`)         | File notation (`file.md::1`)        |
 | File paths in SQL    | No (file is CLI argument)      | Yes (SQL references file paths)     |
 | Named tables         | Planned                        | Yes (`--caption`)                   |
-| Mutation operations  | INSERT, DELETE                 | INSERT, UPDATE                      |
+| Mutation operations  | INSERT, UPDATE, DELETE         | INSERT, UPDATE                      |
 | Default output       | Column-aligned terminal format | Markdown                            |
 | Library availability | Planned (FFI, Python focus)    | Go package only                     |
 | CLI style            | Subcommands (`query`, `tables`)| Flags                               |

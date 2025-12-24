@@ -48,6 +48,13 @@ enum Commands {
         /// Path to the markdown file
         file: PathBuf,
     },
+    /// Update rows in a table
+    Update {
+        /// SQL UPDATE statement (e.g., "UPDATE 0 SET name = 'Alice' WHERE id = '1'")
+        sql: String,
+        /// Path to the markdown file
+        file: PathBuf,
+    },
 }
 
 #[derive(Clone, Default, clap::ValueEnum)]
@@ -131,6 +138,23 @@ fn main() -> Result<()> {
 
             std::fs::write(&file, new_content)?;
             eprintln!("Deleted {} row(s) from table {}", delete_result.rows_deleted, delete_result.table_index);
+        }
+        Commands::Update { sql, file } => {
+            let content = std::fs::read_to_string(&file)?;
+            let tables = markdown::extract_tables(&content);
+
+            let update_result = query::execute_update(&sql, &tables)?;
+
+            // Create modified table with updated rows
+            let mut modified_table = tables[update_result.table_index].clone();
+            modified_table.rows = update_result.updated_rows;
+
+            // Rewrite the file
+            let new_content = markdown::rewrite_table(&content, update_result.table_index, &modified_table)
+                .ok_or_else(|| error::MdsqlError::Query("Failed to rewrite table".to_string()))?;
+
+            std::fs::write(&file, new_content)?;
+            eprintln!("Updated {} row(s) in table {}", update_result.rows_updated, update_result.table_index);
         }
     }
 
