@@ -1,0 +1,18 @@
+[package]
+name = "mdsql"
+version = "0.1.0"
+edition = "2024"
+description = "SQL queries for markdown tables"
+license = "GPL-2.0"
+repository = "https://github.com/divanvisagie/mdsql"
+keywords = ["markdown", "sql", "tables", "cli"]
+categories = ["command-line-utilities", "text-processing"]
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+comrak = "0.29"
+sqlparser = { version = "0.53", features = ["visitor"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+regex = "1"
