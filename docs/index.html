@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>mdsql - SQL for Markdown Tables</title>
+  <link rel="stylesheet" href="https://divanv.com/css/styles.css">
+  <link rel="stylesheet" href="https://divanv.com/css/main.css">
+  <script src="https://divanv.com/js/index.js"></script>
+</head>
+<body>
+  <nav>
+    <div>
+      <h1>
+        <a href="/">Divan <span class="full">Visagie</span></a>
+        <span style="color: var(--accent-color); margin: 0 8px;">/</span>
+        <span>mdsql</span>
+      </h1>
+    </div>
+  </nav>
+
+  <div class="content">
+    <div class="post-content">
+      <h2 class="subtitle">SQL for Markdown Tables</h2>
+
+      <p class="warning" style="background: var(--code-background); border-left: 4px solid var(--accent-color); padding: 1em; margin: 1em 0;">
+        <strong>Warning:</strong> This is an experimental program that modifies files in-place.
+        Always use version control (git) or back up your markdown files before running
+        INSERT or DELETE operations.
+      </p>
+
+      <p>
+        mdsql treats tables in markdown files as a lightweight database. Query, insert,
+        and delete rows using familiar SQL syntax while keeping your data human-readable.
+      </p>
+
+      <p>
+        The idea is simple: markdown tables are already structured data. Why not query them
+        like a database? This gives you the best of both worlds, files you can read
+        and edit by hand, with the power of SQL when you need it.
+      </p>
+
+      <ul>
+        <li>Query markdown tables with SELECT, WHERE, ORDER BY, LIMIT</li>
+        <li>Insert and delete rows with standard SQL syntax</li>
+        <li>Output as columns, markdown, CSV, JSON, or TSV</li>
+        <li>Unix-friendly: default output pipes well with other tools</li>
+        <li>Tables addressed by 0-based index</li>
+      </ul>
+
+      <p>
+        <a href="https://github.com/divanvisagie/mdsql">GitHub</a>
+      </p>
+
+      <h2>Install</h2>
+
+      <p>Install with Cargo:</p>
+
+<pre><code>cargo install --git https://github.com/divanvisagie/mdsql</code></pre>
+
+      <h2>Quick Start</h2>
+
+      <p>Given a markdown file with a table:</p>
+
+<pre><code># Team
+
+| name    | role      | level |
+|---------|-----------|-------|
+| Alice   | Engineer  | 3     |
+| Bob     | Designer  | 2     |
+| Charlie | Manager   | 4     |</code></pre>
+
+      <p>List tables in a file:</p>
+
+<pre><code>$ mdsql tables team.md
+Table 0: 3 columns, 3 rows
+  Columns: name, role, level</code></pre>
+
+      <p>Query with SQL:</p>
+
+<pre><code>$ mdsql query "SELECT name, role FROM 0 WHERE level > 2" team.md
+name     role
+Alice    Engineer
+Charlie  Manager</code></pre>
+
+      <h2>Supported SQL</h2>
+
+      <h3>SELECT</h3>
+
+<pre><code># Select all columns
+mdsql query "SELECT * FROM 0" data.md
+
+# Select specific columns
+mdsql query "SELECT name, age FROM 0" data.md
+
+# Filter with WHERE
+mdsql query "SELECT * FROM 0 WHERE status = 'active'" data.md
+
+# Sort results
+mdsql query "SELECT * FROM 0 ORDER BY score DESC" data.md
+
+# Limit results
+mdsql query "SELECT * FROM 0 LIMIT 10" data.md
+
+# Combine clauses
+mdsql query "SELECT name, score FROM 0 WHERE score > 50 ORDER BY score DESC LIMIT 5" data.md</code></pre>
+
+      <h3>INSERT</h3>
+
+<pre><code># Insert a new row
+mdsql insert "INSERT INTO 0 (name, role, level) VALUES ('Diana', 'Engineer', '2')" team.md</code></pre>
+
+      <h3>DELETE</h3>
+
+<pre><code># Delete matching rows
+mdsql delete "DELETE FROM 0 WHERE name = 'Bob'" team.md
+
+# Delete all rows (use with caution)
+mdsql delete "DELETE FROM 0" team.md</code></pre>
+
+      <h2>Output Formats</h2>
+
+      <p>Use <code>--format</code> to change output:</p>
+
+<pre><code># Column-aligned (default, like df -h)
+mdsql query "SELECT * FROM 0" data.md
+
+# Markdown table
+mdsql query --format markdown "SELECT * FROM 0" data.md
+
+# CSV
+mdsql query --format csv "SELECT * FROM 0" data.md
+
+# JSON
+mdsql query --format json "SELECT * FROM 0" data.md
+
+# Tab-separated
+mdsql query --format tsv "SELECT * FROM 0" data.md</code></pre>
+
+      <h2>Unix Pipelines</h2>
+
+      <p>The default column output works well with standard Unix tools:</p>
+
+<pre><code># Count rows matching a condition
+mdsql query "SELECT * FROM 0 WHERE status = 'active'" data.md | tail -n +2 | wc -l
+
+# Filter output with grep
+mdsql query "SELECT * FROM 0" data.md | grep "Engineer"
+
+# Process with awk
+mdsql query "SELECT name, score FROM 0" data.md | awk 'NR>1 {sum+=$2} END {print sum}'</code></pre>
+
+      <h2>Table Addressing</h2>
+
+      <p>
+        Tables are addressed by their 0-based index in the document. The first table
+        is <code>FROM 0</code>, the second is <code>FROM 1</code>, and so on.
+      </p>
+
+<pre><code># Query the first table
+mdsql query "SELECT * FROM 0" data.md
+
+# Query the second table
+mdsql query "SELECT * FROM 1" data.md</code></pre>
+
+      <h2>Roadmap</h2>
+
+      <ul>
+        <li>Split into library crate and CLI crate</li>
+        <li><code>UPDATE ... SET ... WHERE</code></li>
+        <li>Aggregate functions (SUM, COUNT, AVG, MIN, MAX)</li>
+        <li>GROUP BY</li>
+        <li>Infer table names from preceding markdown headers</li>
+      </ul>
+
+    </div>
+  </div>
+
+  <footer>
+    Divan Visagie &bull; Copyright 2019-25 &bull;
+    <a href="mailto:me@divanv.com">me@divanv.com</a> &bull;
+    <span><a href="/podcast">Podcast</a></span> &bull;
+    <span><a href="/cv">CV</a></span> &bull;
+    <span><a href="https://github.com/divanvisagie">GitHub</a></span>
+  </footer>
+</body>
+</html>
