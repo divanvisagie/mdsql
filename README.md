@@ -62,7 +62,24 @@ Tables are referenced by 0-based index: `FROM 0`, `INTO 0`, etc.
 ## Roadmap
 
 - Split into `mdsql` library crate and `mdsql-cli` binary crate
+- FFI-first library for multi-language use (Python first)
 - `UPDATE ... SET ... WHERE`
 - Aggregate functions (`SUM`, `COUNT`, `AVG`, `MIN`, `MAX`)
 - `GROUP BY`
 - Infer table names from preceding markdown headers
+
+## See Also
+
+[mdtsql](https://github.com/noborus/mdtsql) is a similar Go-based tool for querying markdown tables with SQL.
+
+| Feature              | mdsql (this project)           | mdtsql                              |
+| -------------------- | ------------------------------ | ----------------------------------- |
+| Table references     | Index-based (`FROM 0`)         | File notation (`file.md::1`)        |
+| File paths in SQL    | No (file is CLI argument)      | Yes (SQL references file paths)     |
+| Named tables         | Planned                        | Yes (`--caption`)                   |
+| Mutation operations  | INSERT, DELETE                 | INSERT, UPDATE                      |
+| Default output       | Column-aligned terminal format | Markdown                            |
+| Library availability | Planned (FFI, Python focus)    | Go package only                     |
+| CLI style            | Subcommands (`query`, `tables`)| Flags                               |
+
+Why mdsql exists: I wanted a Rust implementation with a simpler subcommand-based CLI, column-aligned terminal output by default, SQL that never embeds filesystem paths, and DELETE support for my note-taking workflows.

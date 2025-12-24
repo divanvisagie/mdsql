@@ -37,7 +37,8 @@
       <p>
         The idea is simple: markdown tables are already structured data. Why not query them
         like a database? This gives you the best of both worlds, files you can read
-        and edit by hand, with the power of SQL when you need it.
+        and edit by hand, with the power of SQL when you need it. The SQL itself never
+        includes filesystem paths; the file stays a CLI argument.
       </p>
 
       <ul>
@@ -168,6 +169,7 @@ mdsql query "SELECT * FROM 1" data.md</code></pre>
 
       <ul>
         <li>Split into library crate and CLI crate</li>
+        <li>FFI-first library for multiple languages (Python first)</li>
         <li><code>UPDATE ... SET ... WHERE</code></li>
         <li>Aggregate functions (SUM, COUNT, AVG, MIN, MAX)</li>
         <li>GROUP BY</li>
